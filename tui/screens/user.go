@@ -22,6 +22,8 @@ type User struct {
 	inputs [fTotal]textinput.Model
 	focus  int
 	err    string
+	width  int
+	height int
 }
 
 func NewUser(cfg *config.Config) User {
@@ -42,13 +44,26 @@ func NewUser(cfg *config.Config) User {
 	if cfg.Username != "" {
 		inputs[fUser].SetValue(cfg.Username)
 	}
-	return User{cfg: cfg, inputs: inputs}
+	return User{cfg: cfg, inputs: inputs, width: 80, height: 24}
 }
 
 func (m User) Init() tea.Cmd { return textinput.Blink }
 
 func (m User) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		for i := range m.inputs {
+			m.inputs[i].Width = m.width / 3
+		}
+		return m, nil
+
+	case errClearMsg:
+		m.err = ""
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab", "down":
@@ -75,9 +90,9 @@ func (m User) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
+
 	var cmd tea.Cmd
 	m.inputs[m.focus], cmd = m.inputs[m.focus].Update(msg)
-	m.err = ""
 	return m, cmd
 }
 
@@ -89,47 +104,54 @@ func (m *User) submit() tea.Cmd {
 	switch {
 	case u == "":
 		m.err = "username cannot be empty"
+		return clearErrAfter(4)
 	case strings.ContainsAny(u, " /"):
 		m.err = "username cannot have spaces or slashes"
+		return clearErrAfter(4)
 	case len(p) < 6:
 		m.err = "password must be at least 6 characters"
+		return clearErrAfter(4)
 	case len(r) < 6:
 		m.err = "root password must be at least 6 characters"
+		return clearErrAfter(4)
 	default:
 		m.cfg.Username = u
 		m.cfg.UserPassword = p
 		m.cfg.RootPassword = r
 		m.err = ""
-		return GoTo(config.ScreenConfirm)
+		return GoTo(config.ScreenPackages)
 	}
-	return nil
 }
 
 func (m User) View() string {
+	progress := components.ProgressBar(m.width, 2)
 	title := components.Title.Render("User Account")
-	sub := components.Subtitle.Render("Create your user — user gets sudo access")
+	sub := components.Subtitle.Render("Create your user — gets sudo access automatically")
 
 	labels := [fTotal]string{"Username", "Password", "Root Password"}
 	var form string
 	for i, inp := range m.inputs {
+		inp.Width = m.width / 3
 		label := components.Dim.Render(labels[i])
 		var box string
 		if i == m.focus {
-			box = components.ActiveBox.Render(inp.View())
+			box = components.ActiveBoxWithWidth(m.width).Render(inp.View())
 		} else {
-			box = components.Box.Render(inp.View())
+			box = components.BoxWithWidth(m.width).Render(inp.View())
 		}
 		form += label + "\n" + box + "\n\n"
 	}
 
 	errLine := ""
 	if m.err != "" {
-		errLine = components.Err.Render("  " + m.err)
+		errLine = components.Err.Render("  ✗  " + m.err)
 	}
 
 	help := components.Help("tab", "next field", "enter", "confirm", "esc", "back")
 
-	return lipgloss.NewStyle().Padding(2, 4).Render(
-		lipgloss.JoinVertical(lipgloss.Left, title, sub, form, errLine, help),
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		title, sub, form, errLine, help, progress,
 	)
+
+	return components.Page(m.width, m.height, content)
 }

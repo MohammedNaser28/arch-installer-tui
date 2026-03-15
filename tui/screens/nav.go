@@ -3,14 +3,12 @@ package screens
 import (
 	"arch-installer/config"
 	"errors"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// ToMsg triggers a screen transition
 type ToMsg struct{ Screen config.Screen }
-
-// ErrMsg sends an error to the error screen
 type ErrMsg struct{ Err error }
 
 func GoTo(s config.Screen) tea.Cmd {
@@ -19,4 +17,13 @@ func GoTo(s config.Screen) tea.Cmd {
 
 func Fail(msg string) tea.Cmd {
 	return func() tea.Msg { return ErrMsg{errors.New(msg)} }
+}
+
+// clearErrAfter sends errClearMsg after n seconds
+// so error messages stay visible long enough to read
+func clearErrAfter(seconds int) tea.Cmd {
+	return tea.Tick(
+		time.Duration(seconds)*time.Second,
+		func(t time.Time) tea.Msg { return errClearMsg{} },
+	)
 }

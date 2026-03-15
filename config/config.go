@@ -5,6 +5,7 @@ type Screen int
 const (
 	ScreenWelcome Screen = iota
 	ScreenDiskSelect
+	ScreenPackages
 	ScreenHostname
 	ScreenUser
 	ScreenConfirm
@@ -14,24 +15,19 @@ const (
 )
 
 type Config struct {
-	// Disk
-	TargetDisk    string // /dev/sda
-	BootMode      string // uefi | bios
-	EFIPartition  string // /dev/sda1
-	RootPartition string // /dev/sda2
-
-	// System
-	Hostname string
-
-	// User
-	Username     string
-	UserPassword string
-	RootPassword string
-
-	// Runtime
-	DryRun  bool
-	LogPath string
-	LastErr string
+	TargetDisk    string
+	BootMode      string
+	EFIPartition  string
+	RootPartition string
+	Hostname      string
+	Username      string
+	UserPassword  string
+	RootPassword  string
+	ExtraPackages []string
+	JetbrainsIDEs []string
+	DryRun        bool
+	LogPath       string
+	LastErr       string
 }
 
 func New() *Config {

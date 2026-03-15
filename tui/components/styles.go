@@ -18,10 +18,10 @@ var (
 		Foreground(Mauve).Bold(true).MarginBottom(1)
 
 	Subtitle = lipgloss.NewStyle().
-			Foreground(Subtext).MarginBottom(1)
+		Foreground(Subtext).MarginBottom(1)
 
 	Selected = lipgloss.NewStyle().
-			Foreground(Blue).Bold(true)
+		Foreground(Blue).Bold(true)
 
 	Normal = lipgloss.NewStyle().
 		Foreground(Text)
@@ -44,20 +44,45 @@ var (
 		Padding(1, 2)
 
 	ActiveBox = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(Mauve).
-			Padding(1, 2)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(Mauve).
+		Padding(1, 2)
 )
 
-// Help renders key hint bar at bottom of every screen
+func BoxWithWidth(w int) lipgloss.Style {
+	boxW := w - 12
+	if boxW < 40 { boxW = 40 }
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(Surface).
+		Padding(1, 2).
+		Width(boxW)
+}
+
+func ActiveBoxWithWidth(w int) lipgloss.Style {
+	boxW := w - 12
+	if boxW < 40 { boxW = 40 }
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(Mauve).
+		Padding(1, 2).
+		Width(boxW)
+}
+
 func Help(pairs ...string) string {
 	out := ""
 	for i := 0; i+1 < len(pairs); i += 2 {
-		if i > 0 {
-			out += Dim.Render("  ·  ")
-		}
+		if i > 0 { out += Dim.Render("  ·  ") }
 		out += lipgloss.NewStyle().Foreground(Blue).Render(pairs[i]) +
 			" " + Dim.Render(pairs[i+1])
 	}
 	return lipgloss.NewStyle().MarginTop(1).Render(out)
+}
+
+func Page(w, h int, content string) string {
+	return lipgloss.NewStyle().
+		Width(w).
+		Height(h).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(content)
 }
