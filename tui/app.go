@@ -3,6 +3,9 @@ package tui
 import (
 	"arch-installer/config"
 	"arch-installer/tui/screens"
+	"os"
+	"strconv"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,23 +19,47 @@ type App struct {
 	height  int
 }
 
+func getTerminalSize() (int, int) {
+	// Try to get real terminal size from environment
+	w, h := 80, 24
+	if cols := os.Getenv("COLUMNS"); cols != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(cols)); err == nil {
+			w = n
+		}
+	}
+	if rows := os.Getenv("LINES"); rows != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(rows)); err == nil {
+			h = n
+		}
+	}
+	return w, h
+}
+
 func New(cfg *config.Config) App {
+	w, h := getTerminalSize()
 	a := App{
 		cfg:     cfg,
 		current: config.ScreenWelcome,
 		models:  make(map[config.Screen]tea.Model),
-		width:   80,
-		height:  24,
+		width:   w,
+		height:  h,
 	}
-	a.models[config.ScreenWelcome] = screens.NewWelcome(cfg)
+	a.models[config.ScreenWelcome]    = screens.NewWelcome(cfg)
 	a.models[config.ScreenDiskSelect] = screens.NewDiskSelect(cfg)
-	a.models[config.ScreenPackages] = screens.NewPackages(cfg)
-	a.models[config.ScreenHostname] = screens.NewHostname(cfg)
-	a.models[config.ScreenUser] = screens.NewUser(cfg)
-	a.models[config.ScreenConfirm] = screens.NewConfirm(cfg)
-	a.models[config.ScreenInstall] = screens.NewInstall(cfg)
-	a.models[config.ScreenDone] = screens.NewDone(cfg)
-	a.models[config.ScreenError] = screens.NewError(cfg)
+	a.models[config.ScreenPackages]   = screens.NewPackages(cfg)
+	a.models[config.ScreenHostname]   = screens.NewHostname(cfg)
+	a.models[config.ScreenUser]       = screens.NewUser(cfg)
+	a.models[config.ScreenConfirm]    = screens.NewConfirm(cfg)
+	a.models[config.ScreenInstall]    = screens.NewInstall(cfg)
+	a.models[config.ScreenDone]       = screens.NewDone(cfg)
+	a.models[config.ScreenError]      = screens.NewError(cfg)
+
+	// Send initial window size to all screens
+	initMsg := tea.WindowSizeMsg{Width: w, Height: h}
+	for k, m := range a.models {
+		updated, _ := m.Update(initMsg)
+		a.models[k] = updated
+	}
 	return a
 }
 
@@ -48,9 +75,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 	}
 
-	// Propagate window size to all screens
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width = ws.Width
+		a.width  = ws.Width
 		a.height = ws.Height
 		for k, m := range a.models {
 			updated, _ := m.Update(msg)
@@ -59,10 +85,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	// Screen transition — reinitialize the target screen fresh
 	if t, ok := msg.(screens.ToMsg); ok {
 		a.current = t.Screen
-		// Reinitialize with fresh model to clear any stale state
 		switch t.Screen {
 		case config.ScreenWelcome:
 			a.models[t.Screen] = screens.NewWelcome(a.cfg)
@@ -83,10 +107,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case config.ScreenError:
 			a.models[t.Screen] = screens.NewError(a.cfg)
 		}
-		// Send current window size to new screen immediately
 		updated, cmd := a.models[t.Screen].Update(tea.WindowSizeMsg{
-			Width:  a.width,
-			Height: a.height,
+			Width: a.width, Height: a.height,
 		})
 		a.models[t.Screen] = updated
 		return a, tea.Batch(tea.ClearScreen, cmd)
