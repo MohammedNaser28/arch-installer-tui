@@ -28,7 +28,7 @@ func (m Welcome) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter", " ":
-			return m, GoTo(config.ScreenDiskSelect)
+			return m, GoTo(config.ScreenNetwork)
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}

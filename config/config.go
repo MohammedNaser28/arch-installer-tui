@@ -4,6 +4,7 @@ type Screen int
 
 const (
 	ScreenWelcome Screen = iota
+	ScreenNetwork
 	ScreenDiskSelect
 	ScreenPackages
 	ScreenHostname

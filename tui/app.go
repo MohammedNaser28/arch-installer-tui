@@ -19,8 +19,7 @@ type App struct {
 	height  int
 }
 
-func getTerminalSize() (int, int) {
-	// Try to get real terminal size from environment
+func getTermSize() (int, int) {
 	w, h := 80, 24
 	if cols := os.Getenv("COLUMNS"); cols != "" {
 		if n, err := strconv.Atoi(strings.TrimSpace(cols)); err == nil {
@@ -35,8 +34,34 @@ func getTerminalSize() (int, int) {
 	return w, h
 }
 
+func newScreen(cfg *config.Config, s config.Screen) tea.Model {
+	switch s {
+	case config.ScreenWelcome:
+		return screens.NewWelcome(cfg)
+	case config.ScreenNetwork:
+		return screens.NewNetwork(cfg)
+	case config.ScreenDiskSelect:
+		return screens.NewDiskSelect(cfg)
+	case config.ScreenPackages:
+		return screens.NewPackages(cfg)
+	case config.ScreenHostname:
+		return screens.NewHostname(cfg)
+	case config.ScreenUser:
+		return screens.NewUser(cfg)
+	case config.ScreenConfirm:
+		return screens.NewConfirm(cfg)
+	case config.ScreenInstall:
+		return screens.NewInstall(cfg)
+	case config.ScreenDone:
+		return screens.NewDone(cfg)
+	case config.ScreenError:
+		return screens.NewError(cfg)
+	}
+	return screens.NewWelcome(cfg)
+}
+
 func New(cfg *config.Config) App {
-	w, h := getTerminalSize()
+	w, h := getTermSize()
 	a := App{
 		cfg:     cfg,
 		current: config.ScreenWelcome,
@@ -44,30 +69,25 @@ func New(cfg *config.Config) App {
 		width:   w,
 		height:  h,
 	}
-	a.models[config.ScreenWelcome]    = screens.NewWelcome(cfg)
-	a.models[config.ScreenDiskSelect] = screens.NewDiskSelect(cfg)
-	a.models[config.ScreenPackages]   = screens.NewPackages(cfg)
-	a.models[config.ScreenHostname]   = screens.NewHostname(cfg)
-	a.models[config.ScreenUser]       = screens.NewUser(cfg)
-	a.models[config.ScreenConfirm]    = screens.NewConfirm(cfg)
-	a.models[config.ScreenInstall]    = screens.NewInstall(cfg)
-	a.models[config.ScreenDone]       = screens.NewDone(cfg)
-	a.models[config.ScreenError]      = screens.NewError(cfg)
 
-	// Send initial window size to all screens
+	all := []config.Screen{
+		config.ScreenWelcome, config.ScreenNetwork, config.ScreenDiskSelect,
+		config.ScreenPackages, config.ScreenHostname, config.ScreenUser,
+		config.ScreenConfirm, config.ScreenInstall, config.ScreenDone,
+		config.ScreenError,
+	}
+
 	initMsg := tea.WindowSizeMsg{Width: w, Height: h}
-	for k, m := range a.models {
+	for _, s := range all {
+		m := newScreen(cfg, s)
 		updated, _ := m.Update(initMsg)
-		a.models[k] = updated
+		a.models[s] = updated
 	}
 	return a
 }
 
 func (a App) Init() tea.Cmd {
-	return tea.Batch(
-		tea.EnterAltScreen,
-		a.models[a.current].Init(),
-	)
+	return tea.Batch(tea.EnterAltScreen, a.models[a.current].Init())
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -76,7 +96,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
-		a.width  = ws.Width
+		a.width = ws.Width
 		a.height = ws.Height
 		for k, m := range a.models {
 			updated, _ := m.Update(msg)
@@ -87,31 +107,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if t, ok := msg.(screens.ToMsg); ok {
 		a.current = t.Screen
-		switch t.Screen {
-		case config.ScreenWelcome:
-			a.models[t.Screen] = screens.NewWelcome(a.cfg)
-		case config.ScreenDiskSelect:
-			a.models[t.Screen] = screens.NewDiskSelect(a.cfg)
-		case config.ScreenPackages:
-			a.models[t.Screen] = screens.NewPackages(a.cfg)
-		case config.ScreenHostname:
-			a.models[t.Screen] = screens.NewHostname(a.cfg)
-		case config.ScreenUser:
-			a.models[t.Screen] = screens.NewUser(a.cfg)
-		case config.ScreenConfirm:
-			a.models[t.Screen] = screens.NewConfirm(a.cfg)
-		case config.ScreenInstall:
-			a.models[t.Screen] = screens.NewInstall(a.cfg)
-		case config.ScreenDone:
-			a.models[t.Screen] = screens.NewDone(a.cfg)
-		case config.ScreenError:
-			a.models[t.Screen] = screens.NewError(a.cfg)
-		}
-		updated, cmd := a.models[t.Screen].Update(tea.WindowSizeMsg{
-			Width: a.width, Height: a.height,
-		})
+		a.models[t.Screen] = newScreen(a.cfg, t.Screen)
+		updated, cmd := a.models[t.Screen].Update(
+			tea.WindowSizeMsg{Width: a.width, Height: a.height},
+		)
+		initCmd := updated.Init()
 		a.models[t.Screen] = updated
-		return a, tea.Batch(tea.ClearScreen, cmd)
+		return a, tea.Batch(tea.ClearScreen, cmd, initCmd)
 	}
 
 	updated, cmd := a.models[a.current].Update(msg)
@@ -120,9 +122,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) View() string {
-	content := a.models[a.current].View()
 	return lipgloss.NewStyle().
 		Width(a.width).
 		Height(a.height).
-		Render(content)
+		Render(a.models[a.current].View())
 }
